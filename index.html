@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CYBER-WITCH: SONIC EDITION</title>
+    <title>CYBER-WITCH: IMMERSIVE</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Playfair+Display:ital,wght@1,400;1,700&display=swap');
 
@@ -11,6 +11,10 @@
         
         #canvas-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
         
+        /* Persistent UI Layer (Always on top, for Fullscreen) */
+        #persistent-ui { position: absolute; top: 20px; right: 20px; z-index: 200; pointer-events: auto; }
+
+        /* Game UI Layer (Hidden initially) */
         #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; pointer-events: none; }
         .hud-panel { position: absolute; pointer-events: auto; }
 
@@ -116,9 +120,14 @@
 </head>
 <body>
 
-    <div id="loading">INITIALIZING AUDIO CORE...</div>
+    <div id="loading">INITIALIZING SYSTEM...</div>
     <video id="input-video"></video>
     <div id="canvas-container"></div>
+
+    <!-- FULLSCREEN BUTTON (Always visible) -->
+    <div id="persistent-ui">
+        <button id="fullscreen-btn" class="btn" onclick="toggleFull()">FULLSCREEN</button>
+    </div>
 
     <div id="intro-screen">
         <div class="intro-text">Per aspera<br>ad astra.</div>
@@ -127,9 +136,9 @@
 
     <div id="ui-layer">
         <div id="top-bar" class="hud-panel">
-            <button id="audio-btn" class="btn" onclick="toggleAudio()">AUDIO: ON</button>
+            <!-- Audio Button is here, so it only appears after game starts -->
+            <button id="audio-btn" class="btn btn-active" onclick="toggleAudio()">AUDIO: ON</button>
             <button id="toggle-mode" class="btn" onclick="switchMode(state.mode==='hand'?'mouse':'hand')">CONTROL: MOUSE</button>
-            <button id="fullscreen-btn" class="btn" onclick="toggleFull()">FULLSCREEN</button>
         </div>
         <div id="message-panel" class="hud-panel">
             <div id="result-title" class="card-title"></div>
@@ -141,12 +150,23 @@
     </div>
 
 <script>
-// --- AUDIO SYSTEM ---
-// Netease Music Direct Link
+// --- AUDIO SYSTEM (Auto-start logic) ---
 const BGM_URL = "https://music.163.com/song/media/outer/url?id=2752519729.mp3";
 const bgm = new Audio(BGM_URL);
 bgm.loop = true;
-bgm.volume = 0.5; // 50% Volume
+bgm.volume = 0.5; 
+
+// 1. Try to autoplay immediately
+bgm.play().catch(() => {
+    // 2. If blocked by browser, wait for the FIRST interaction anywhere
+    const enableAudio = () => {
+        bgm.play();
+        document.removeEventListener('click', enableAudio);
+        document.removeEventListener('keydown', enableAudio);
+    };
+    document.addEventListener('click', enableAudio);
+    document.addEventListener('keydown', enableAudio);
+});
 
 function toggleAudio() {
     const btn = document.getElementById('audio-btn');
@@ -154,7 +174,7 @@ function toggleAudio() {
         bgm.play().then(() => {
             btn.innerText = "AUDIO: ON";
             btn.classList.add("btn-active");
-        }).catch(e => console.log("Audio play failed:", e));
+        });
     } else {
         bgm.pause();
         btn.innerText = "AUDIO: OFF";
@@ -169,15 +189,6 @@ const PROXY_BASE = "https://images.weserv.nl/?url=";
 
 function startGame() {
     isGameActive = true;
-    
-    // START AUDIO ON CLICK (User Interaction)
-    bgm.play().then(() => {
-        document.getElementById('audio-btn').classList.add("btn-active");
-    }).catch(e => {
-        console.log("Autoplay blocked, user must click audio btn manually");
-        document.getElementById('audio-btn').innerText = "AUDIO: OFF";
-    });
-
     document.getElementById('intro-screen').style.opacity = 0;
     setTimeout(() => { 
         document.getElementById('intro-screen').style.display = 'none';
@@ -194,7 +205,7 @@ function toggleFull() {
     else if (document.exitFullscreen) document.exitFullscreen();
 }
 
-// --- 1. Deck Data (CORRECT MAPPING) ---
+// --- 1. Deck Data (Verified Mapping) ---
 const TAROT_DECK = [];
 function buildDeck() {
     const majors = [
@@ -396,7 +407,7 @@ function createBackTexture() {
 }
 const backTex = createBackTexture();
 
-// --- 5. GEOMETRY SORTING ---
+// --- 5. GEOMETRY SORTING (NON-INDEXED) ---
 function createSortedCardGeometry() {
     const width = 1.4, height = 2.3, radius = 0.12;
     const shape = new THREE.Shape();
